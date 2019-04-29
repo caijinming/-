@@ -1,0 +1,69 @@
+记录笔记
+
+<<<<----- 1. 类对象 (objc_class) ------ >>>>
+Objective-C 类是由Class类型来表示的，它实际上是一个指向objc_class结构体的指针。
+typedef struct objc_class *Class;
+类对象就是一个结构体struct objc_class, 这个结构体存放的数据称为元数据(metadata). struct objc_class的第一个成员变量也是isa 指针，这就说明Class 本身其实也是一个对象。 我们称为类对象。
+
+<<<<----- 2. 实例对象 (objc_object) ------ >>>>
+typedef struct objc_object *id;
+
+总结（实例对象的isa 指向类， 类对象的isa 指向metaClass元类。）
+
+<<<<----- 3. 方法 (objc_method) ----- >>>>
+typedef struct objc_method *Method;
+
+struct objc_method {
+    SEL method_name;   方法名， 相同名字的方法即使在不同类中定义，它们的方法选择器也相同。
+    char *method_types;  方法类型， 是个char 指针，其实存储着方法的参数类型和返回值类型。
+    IMP method_imp;   方法实现，本质上是一个函数指针。
+}
+
+<<<<----- 4. SEL (objc_selector) ----- >>>>
+typedef struct objc_selector *SEL;
+
+(1) objc_msgSend函数第二个参数类型为SEL, 它是selector 在Objective-C 中的表示类型，swift 中是Selector类。 selector是方法选择器，可以理解为ID， 而这个ID的数据结构就是SEL.
+(2) @property SEL selector  可以看出selector 是SEL 的一个实例。
+(3) 其实selector 就是个映射到方法的 C 字符串，可以使用Objective-C 编译器命令@selector() 或者 Runtime 系统的sel_registerName 函数来获得一个 SEL 类型的方法选择器。
+(4) selector 既然是一个string， 猜测是类型className + method 的组合。 因为在oc 中同类中方法名称不能相同，不同类可以相同。（这也是oc 里不存在函数的重载的原因吧）
+
+<<<<----- 4. IMP (使用单词implementation)  ----- >>>>
+typedef id (*IMP)(id, SEL, ...)       指向最终实现程序的内存地址的指针（指向一个方法实现的指针）
+
+<<<<----- 5. objc_cache ----- >>>>
+1. [NSArray alloc]`先被执行。因为NSArray没有`+alloc`方法，于是去父类NSObject去查找。
+2. 检测NSObject是否响应`+alloc`方法，发现响应，于是检测NSArray类，并根据其所需的内存空间大小开始分配内存空间，然后把`isa`指针指向NSArray类。同时，`+alloc`也被加进cache列表里面。
+3. 接着，执行`-init`方法，如果NSArray响应该方法，则直接将其加入`cache`；如果不响应，则去父类查找。
+4. 在后期的操作中，如果再以`[[NSArray alloc] init]`这种方式来创建数组，则会直接从cache中取出相应的方法，直接调用。
+
+当创建一个特定类的实例对象时，分配的内存包含一个objc_object数据结构，然后是类的实例变量的数据。另外常见的id，它是一个objc_object结构类型的指针。改类型的对象可以转换为任何一种对象。
+
+struct objc_cache {
+    unsigned int mask;          指定分配的缓存bucket的总数。
+    unsigned int occupied;      指定实际占用的缓存bucket的总数。
+    Method buckets[1];          指向Method数据结构指针的数组。这个数组可能包含不超过mask+1个元素。需要注意的是，指针可能是NULL，表示这个缓存bucket没有被占用，另外被占用的bucket可能是不连续的。这个数组可能会随着时间而增长。
+}
+
+<<<<----- 6. 元类(Meta Class) ----- >>>>
+1. NSArray *array = [NSArray array];
+2. +array消息发送给了NSArray类，而这个NSArray也是一个对象。既然是对象，那么它也是一个objc_object指针，它包含一个指向其类的一个isa指针。那么这些就有一个问题了，这个isa指针指向什么呢？为了调用+array方法，这个类的isa指针必须指向一个包含这些类方法的一个objc_class结构体。这就引出了meta-class的概念.
+3. meta-class 是一个类对象的类。 因为meta-class 也是一个类，语言设计者为了不让这个结构无限延伸下去，设计者让所有的meta-class的isa指向基类meta-class, 以此作为它们的所属类。即，任何NSObject继承体系下的meta-class都使用NSObject的meta-class作为自己的所属类，而基类的meta-class的isa指针是指向它自己。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
